@@ -139,14 +139,103 @@ def fix_object(ob):
 
 		# Reapply the previous local transform with an X+90 rotation
 		ob.matrix_local = mat_original @ mathutils.Matrix.Rotation(math.radians(90.0), 4, 'X')
-
+		#ob.matrix_local = mathutils.Matrix.Rotation(math.radians(90.0), 4, 'X')
+		
+		if ob.type == 'EMPTY':
+			if ob.animation_data != None:
+				if ob.animation_data.action != None:
+					fix_animation(ob)
+	
 	# Recursively fix child objects in current view layer.
 	# Children may be in the current view layer even if their parent isn't.
 	for child in ob.children:
 		fix_object(child)
 
 
-def export_unity_fbx(context, filepath, active_collection, selected_objects, deform_bones, leaf_bones):
+def fix_animation_euler(ob):
+    print('...E...')
+    tmp_data_frams_x = []
+    tmp_data_value_x = []
+    tmp_data_frams_y = []
+    tmp_data_value_y = []
+    tmp_data_frams_z = []
+    tmp_data_value_z = []
+        
+    #xyz collect
+    for point in ob.animation_data.action.fcurves[0].keyframe_points:
+        tmp_data_frams_x.append(point.co.x)
+        tmp_data_value_x.append(point.co.y)
+    for point in ob.animation_data.action.fcurves[1].keyframe_points:
+        tmp_data_frams_y.append(point.co.x)
+        tmp_data_value_y.append(point.co.y)
+    for point in ob.animation_data.action.fcurves[2].keyframe_points:
+        tmp_data_frams_z.append(point.co.x)
+        tmp_data_value_z.append(point.co.y)
+        
+    #create new action
+    new_name = ob.animation_data.action.name + '_tmp'
+    bpy.data.actions.new(new_name)
+    ob.animation_data.action = bpy.data.actions.get(new_name)
+    ob.keyframe_insert(data_path="rotation_euler", frame=-1)
+
+    #insert conwert action
+    for i in range(len(tmp_data_frams_x)):
+        bpy.data.actions[new_name].fcurves[0].keyframe_points.insert(tmp_data_frams_x[i],tmp_data_value_x[i])
+    for i in range(len(tmp_data_frams_y)):
+        bpy.data.actions[new_name].fcurves[2].keyframe_points.insert(tmp_data_frams_y[i],tmp_data_value_y[i] * -1)
+    for i in range(len(tmp_data_frams_z)):
+        bpy.data.actions[new_name].fcurves[1].keyframe_points.insert(tmp_data_frams_z[i],tmp_data_value_z[i])
+
+
+def fix_animation_quaternion(ob):
+    print('...Q...')
+    tmp_data_frams_w = []
+    tmp_data_value_w = []
+    tmp_data_frams_x = []
+    tmp_data_value_x = []
+    tmp_data_frams_y = []
+    tmp_data_value_y = []
+    tmp_data_frams_z = []
+    tmp_data_value_z = []
+        
+    #xyz collect
+    for point in ob.animation_data.action.fcurves[0].keyframe_points:
+        tmp_data_frams_w.append(point.co.x)
+        tmp_data_value_w.append(point.co.y)
+    for point in ob.animation_data.action.fcurves[1].keyframe_points:
+        tmp_data_frams_x.append(point.co.x)
+        tmp_data_value_x.append(point.co.y)
+    for point in ob.animation_data.action.fcurves[2].keyframe_points:
+        tmp_data_frams_y.append(point.co.x)
+        tmp_data_value_y.append(point.co.y)
+    for point in ob.animation_data.action.fcurves[3].keyframe_points:
+        tmp_data_frams_z.append(point.co.x)
+        tmp_data_value_z.append(point.co.y)
+    
+        
+    #create new action
+    new_name = ob.animation_data.action.name + '_tmp'
+    bpy.data.actions.new(new_name)
+    ob.animation_data.action = bpy.data.actions.get(new_name)
+    ob.keyframe_insert(data_path="rotation_quaternion", frame=-1)
+
+    #insert conwert action
+    for i in range(len(tmp_data_frams_x)):
+        bpy.data.actions[new_name].fcurves[0].keyframe_points.insert(tmp_data_frams_w[i],tmp_data_value_w[i])
+    for i in range(len(tmp_data_frams_y)):
+        bpy.data.actions[new_name].fcurves[3].keyframe_points.insert(tmp_data_frams_y[i],tmp_data_value_y[i] * -1)
+    for i in range(len(tmp_data_frams_z)):
+        bpy.data.actions[new_name].fcurves[2].keyframe_points.insert(tmp_data_frams_z[i],tmp_data_value_z[i])
+    for i in range(len(tmp_data_frams_x)):
+        bpy.data.actions[new_name].fcurves[1].keyframe_points.insert(tmp_data_frams_x[i],tmp_data_value_x[i])
+
+def fix_animation(ob):
+    if ob.animation_data.action.fcurves[0].data_path == 'rotation_euler':
+        fix_animation_euler(ob)
+    else:
+        fix_animation_quaternion(ob)
+
+def export_unity_fbx(context, filepath, active_collection, selected_objects, bake_action):
 	global shared_data
 	global hidden_collections
 	global hidden_objects
@@ -218,7 +307,21 @@ def export_unity_fbx(context, filepath, active_collection, selected_objects, def
 
 		# Export FBX file
 
-		params = dict(filepath=filepath, apply_scale_options='FBX_SCALE_UNITS', object_types={'EMPTY', 'MESH', 'ARMATURE'}, use_active_collection=active_collection, use_selection=selected_objects, use_armature_deform_only=deform_bones, add_leaf_bones=leaf_bones)
+		params = dict(filepath=filepath,
+                      apply_scale_options='FBX_SCALE_UNITS',
+                      object_types={'EMPTY', 'MESH', 'ARMATURE'},
+                      use_active_collection=active_collection,
+                      use_selection=selected_objects,
+                      use_armature_deform_only=True,
+                      add_leaf_bones=False,
+                      bake_anim=bake_action,
+                      bake_anim_use_all_bones=False,
+                      bake_anim_use_nla_strips=False,
+                      bake_anim_use_all_actions=False,
+                      bake_anim_force_startend_keying=False,
+                      bake_anim_step=1.0,
+                      bake_anim_simplify_factor=1.0
+                      )
 
 		print("Invoking default FBX Exporter:", params)
 		bpy.ops.export_scene.fbx(**params)
@@ -280,16 +383,10 @@ class ExportUnityFbx(Operator, ExportHelper):
 		description="Export selected objects only. May be combined with Active Collection Only.",
 		default=False,
 	)
-
-	deform_bones: BoolProperty(
-		name="Only Deform Bones",
-		description="Only write deforming bones (and non-deforming ones when they have deforming children)",
-		default=False,
-	)
-
-	leaf_bones: BoolProperty(
-		name="Add Leaf Bones",
-		description="Append a final bone to the end of each chain to specify last bone length (use this when you intend to edit the armature from exported data)",
+	
+	bake_action: BoolProperty(
+		name="Bake Active Action",
+		description="Export active action only.",
 		default=False,
 	)
 
@@ -306,14 +403,11 @@ class ExportUnityFbx(Operator, ExportHelper):
 		row = layout.row()
 		row.prop(self, "selected_objects")
 		row = layout.row()
-		row.label(text = "Armatures")
-		row = layout.row()
-		row.prop(self, "deform_bones")
-		row = layout.row()
-		row.prop(self, "leaf_bones")
+		row.prop(self, "bake_action")
+
 
 	def execute(self, context):
-		return export_unity_fbx(context, self.filepath, self.active_collection, self.selected_objects, self.deform_bones, self.leaf_bones)
+		return export_unity_fbx(context, self.filepath, self.active_collection, self.selected_objects, self.bake_action)
 
 
 # Only needed if you want to add into a dynamic menu
