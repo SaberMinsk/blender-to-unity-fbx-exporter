@@ -320,7 +320,7 @@ def export_unity_fbx(context, filepath, active_collection, selected_objects, bak
                       bake_anim_use_all_actions=False,
                       bake_anim_force_startend_keying=False,
                       bake_anim_step=1.0,
-                      bake_anim_simplify_factor=1.0
+                      bake_anim_simplify_factor=0.0
                       )
 
 		print("Invoking default FBX Exporter:", params)
